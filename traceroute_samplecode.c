@@ -12,8 +12,26 @@
 #include<netdb.h>
 #include<sys/time.h>
 
+#define BUF_SIZE 4096
+
 char *DNSLookup(char *host){
     // TODO
+    return host;
+}
+unsigned short checksum(unsigned short buffer[BUF_SIZE], int len){
+    unsigned int sum = 0;
+
+    for (int i=0 ; i<len ; i++){
+        if(i==0) 
+            sum += buffer[i] << 8;
+        else if(i==1) // Skip checksum
+            continue; 
+        else
+            sum += buffer[i];
+    }
+    sum = sum/(1<<16) + sum%(1<<16);
+
+    return ~sum;
 }
 
 int main(int argc, char *argv[]){
@@ -34,8 +52,12 @@ int main(int argc, char *argv[]){
     sendAddr.sin_family = AF_INET;
     inet_pton(AF_INET, ip, &(sendAddr.sin_addr));
     
+
     // Set timeout
     // TODO
+    struct ip *ip_hdr = (struct ip*) ip;
+    struct timeval timeout = {4,0};
+    setsockopt(icmpfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
     int finish = 0; // if the packet reaches the destination
     int maxHop = 64; // maximum hops
@@ -47,13 +69,22 @@ int main(int argc, char *argv[]){
     for(int h = 1; h < maxHop; h++){
         // Set TTL
         // TODO
+        ip_hdr->ip_ttl = h;
 
         for(int c = 0; c < count; c++){
             // Set ICMP Header
             // TODO
+            char buf[BUF_SIZE] = {'\0'};
+            struct icmphdr *icmphd = (struct icmphdr *) buf;
+            icmphd->type = ICMP_ECHO;
+            icmphd->code = 0;
+            icmphd->checksum = 0;
+            icmphd->un.echo.id = 1;
+            icmphd->un.echo.sequence = h;
 
             // Checksum
             // TODO
+            icmphd->checksum = checksum ((unsigned short*)buf, 4);
             
             // Send the icmp packet to destination
             // TODO
@@ -68,9 +99,9 @@ int main(int argc, char *argv[]){
             char hostname[4][128];
             char srcIP[4][32];
             float interval[4] = {};
+            
             memset(&recvAddr, 0, sizeof(struct sockaddr_in));
             // TODO
-
             // Get source hostname and ip address 
             getnameinfo((struct sockaddr *)&recvAddr, sizeof(recvAddr), hostname[c], sizeof(hostname[c]), NULL, 0, 0); 
             strcpy(srcIP[c], inet_ntoa(recvIP->ip_src));
