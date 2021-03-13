@@ -1,4 +1,8 @@
 all:
-	gcc traceroute_samplecode.c -o trace
+	gcc traceroute.c -o traceroute
 test:
-	./trace 127.0.0.1
+	./traceroute localhost
+test2:
+	./traceroute www.csie.ntu.edu.tw
+clean:
+	rm ./traceroute
