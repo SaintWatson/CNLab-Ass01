@@ -43,17 +43,18 @@ char *DNSLookup(char *host){
 }
 US checksum(US buffer[BUF_SIZE], int len){
     unsigned int sum = 0;
-
+    // printf("[Buffer]: %d %d %d %d\n", buffer[0], buffer[1], buffer[2], buffer[3]);
     for (int i=0 ; i<len ; i++){
-        if(i==0) 
-            sum += buffer[i] << 8;
-        else
-            sum += buffer[i];
+        // if(i==0)
+        //     sum += (buffer[i] << 8);
+        // else
+            sum +=  (unsigned int) buffer[i];
     }
     sum = sum/(1<<16) + sum%(1<<16);
 
     return ~sum;
 }
+
 char *dump(char *buf, int len){
     if(len == -1)
         return "failed";
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]){
     
 
     // [TODO]: Set timeout
-    timeval timeout = {7,0}; // custumize 3 sec.
+    timeval timeout = {2,0}; // custumize 3 sec.
     setsockopt(icmpfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
     int finish = 0; // if the packet reaches the destination
@@ -122,6 +123,7 @@ int main(int argc, char *argv[]){
             setsockopt(icmpfd, IPPROTO_IP, IP_TTL, &h, sizeof(h));
 
             // [TODO] : Set ICMP Header
+            ZERO(sendICMP);
             sendICMP.icmp_type = ICMP_ECHO;
             sendICMP.icmp_code = 0;
             sendICMP.icmp_id = seq++;
@@ -133,7 +135,7 @@ int main(int argc, char *argv[]){
 
             // [TODO] : Send the icmp packet to destination
             gettimeofday(&begin, NULL);
-            ret = sendto(icmpfd, &sendICMP, sizeof(icmp), 0, (SA*)&sendAddr, sizeof(sendAddr));
+            ret = sendto(icmpfd, &sendICMP, sizeof(sendICMP), 0, (SA*)&sendAddr, sizeof(sendAddr));
             if(ret < 0){
                 printf("Error: sendto() is failed with errno:%d\n", errno);
                 exit(1);
@@ -154,10 +156,9 @@ int main(int argc, char *argv[]){
             ZERO(recvAddr);
 
             // [TODO] : Get source hostname and ip address 
-            ret = recvfrom(icmpfd, recvICMP, sizeof(recvICMP), 0, (SA*)&recvAddr, &recvLength);
+            ret = recvfrom(icmpfd, recvBuf, sizeof(recvBuf), 0, (SA*)&recvAddr, &recvLength);
             gettimeofday(&end, NULL);
 
-            // printf("icmpType = %d\n", recvICMP->icmp_type);
             if(ret < 0){
                 if(errno == 11){
                     isTimeout = 1;
@@ -167,8 +168,10 @@ int main(int argc, char *argv[]){
                     exit(1);
                 }
             }
-            // recvICMP = (icmp*) recvBuf; 
+
+            recvICMP = (icmp*) (recvBuf+20);
             icmpType = recvICMP->icmp_type;
+            // printf("(%d) type: %d code: %d\n",c, recvICMP->icmp_type, recvICMP->icmp_code);
 
             if(isTimeout == 1){
                 interval[c] = -1;
@@ -190,8 +193,9 @@ int main(int argc, char *argv[]){
 
 
             // Get source hostname and ip address 
+            ZERO(hostname[c]);
             getnameinfo((struct sockaddr *)&recvAddr, sizeof(recvAddr), hostname[c], sizeof(hostname[c]), NULL, 0, 0); 
-            strcpy(srcIP[c], inet_ntoa(ip_hdr->ip_src));
+            // printf("hostname: %s\n", hostname[c]);
             if(icmpType == 0){
                 finish = 1;
             }
@@ -205,7 +209,7 @@ int main(int argc, char *argv[]){
                     else
                         sprintf(timecost[i], "%.3fms", interval[i]);
                 }
-                printf("%d\t\t%s\t\t%s\t\t%s\t\t%s\n", h, hostname[0],timecost[0], timecost[1], timecost[2]);
+                printf("%d\t%s\t\t%s\t\t%s\t\t%s\n", h, hostname[0],timecost[0], timecost[1], timecost[2]);
 
             }
         }    
