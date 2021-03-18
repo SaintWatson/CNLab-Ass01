@@ -89,11 +89,12 @@ int main(int argc, char *argv[]){
     SAin sendAddr;
     ZERO(sendAddr);
     sendAddr.sin_family = AF_INET;
+    sendAddr.sin_port = htons(7);
     inet_pton(AF_INET, ip, &sendAddr.sin_addr);
     
 
     // [TODO]: Set timeout
-    timeval timeout = {3,0};
+    timeval timeout = {7,0}; // custumize 3 sec.
     setsockopt(icmpfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
     int finish = 0; // if the packet reaches the destination
@@ -110,17 +111,21 @@ int main(int argc, char *argv[]){
     for(int h = 1; h < maxHop; h++){
         
         float interval[4] = {};
+
+        
         for(int c = 0; c < count; c++){
             
+            if(strcmp(ip,"127.0.0.1")==0){
+                finish = 1;
+            }
             // [TODO] : Set TTL 
-            int ttl = h;
-            setsockopt(icmpfd, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+            setsockopt(icmpfd, IPPROTO_IP, IP_TTL, &h, sizeof(h));
 
             // [TODO] : Set ICMP Header
             sendICMP.icmp_type = ICMP_ECHO;
             sendICMP.icmp_code = 0;
             sendICMP.icmp_id = seq++;
-            sendICMP.icmp_seq = ttl;
+            sendICMP.icmp_seq = h;
             sendICMP.icmp_cksum = 0;
 
             // [TODO] : Checksum
@@ -135,7 +140,7 @@ int main(int argc, char *argv[]){
             }
 
             // Recive ICMP reply, need to check the identifier and sequence number
-            icmp *recvICMP;
+            icmp *recvICMP = (icmp*) malloc(sizeof(icmp));
             SAin recvAddr;  
             u_int8_t icmpType;
             unsigned int recvLength = sizeof(recvAddr);
@@ -149,9 +154,10 @@ int main(int argc, char *argv[]){
             ZERO(recvAddr);
 
             // [TODO] : Get source hostname and ip address 
-            ret = recvfrom(icmpfd, recvBuf, sizeof(recvBuf), 0, (SA*)&recvAddr, &recvLength);
+            ret = recvfrom(icmpfd, recvICMP, sizeof(recvICMP), 0, (SA*)&recvAddr, &recvLength);
             gettimeofday(&end, NULL);
 
+            // printf("icmpType = %d\n", recvICMP->icmp_type);
             if(ret < 0){
                 if(errno == 11){
                     isTimeout = 1;
@@ -161,22 +167,26 @@ int main(int argc, char *argv[]){
                     exit(1);
                 }
             }
-
-            recvICMP = (icmp*) recvBuf; 
+            // recvICMP = (icmp*) recvBuf; 
             icmpType = recvICMP->icmp_type;
 
-            if(isTimeout == 1) 
+            if(isTimeout == 1){
                 interval[c] = -1;
-            else
-                interval[c] = (float) (end.tv_sec - begin.tv_sec) * 1000 + (end.tv_usec - begin.tv_usec) / 1000;
+            } 
+            else{
+                interval[c] = 0;
+                interval[c] += (float) (end.tv_usec - begin.tv_usec) / 1000;
+                interval[c] += (float) (end.tv_sec - begin.tv_sec) * 1000;
+            }
 
-            /* Debug Message 
+            // Debug Message 
             char *t = (char*) malloc(INET_ADDRSTRLEN);
-            printf("(1) ret = %d\n", ret);
-            printf("(2) recvBuf = %s \n", dump(recvBuf, ret));
-            printf("(3) recvLength = %d \n",recvLength);
-            printf("(4) recvAddr = %s \n\n",inet_ntop(AF_INET,&recvAddr.sin_addr.s_addr, t, INET_ADDRSTRLEN));
-            */
+            // printf("(1) ret = %d\n", ret);
+            // printf("(2) recvBuf = %s \n", dump(recvBuf, ret));
+            // printf("(3) recvLength = %d \n",recvLength);
+            // printf("(4) recvAddr = %s \n\n",inet_ntop(AF_INET,&recvAddr.sin_addr.s_addr, t, INET_ADDRSTRLEN));
+            // printf("begin:%ld %ld\n", begin.tv_sec, begin.tv_usec);            
+            // printf("end:%ld %ld\n\n", end.tv_sec, end.tv_usec);            
 
 
             // Get source hostname and ip address 
@@ -195,7 +205,7 @@ int main(int argc, char *argv[]){
                     else
                         sprintf(timecost[i], "%.3fms", interval[i]);
                 }
-                printf("%d\t%s\t%s\t%s\t%s\n", h, hostname[0],timecost[0], timecost[1], timecost[2]);
+                printf("%d\t\t%s\t\t%s\t\t%s\t\t%s\n", h, hostname[0],timecost[0], timecost[1], timecost[2]);
 
             }
         }    
