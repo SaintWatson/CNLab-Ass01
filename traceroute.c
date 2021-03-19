@@ -97,9 +97,11 @@ int main(int argc, char *argv[]){
         
         for(int c = 0; c < count; c++){
             
+            // localhost case
             if(strcmp(ip,"127.0.0.1")==0){
                 finish = 1;
             }
+            
             // [TODO] : Set TTL 
             setsockopt(icmpfd, IPPROTO_IP, IP_TTL, &h, sizeof(h));
 
@@ -177,6 +179,7 @@ int main(int argc, char *argv[]){
                 sprintf(timecost[i], "%.3fms", interval[i]);
         }
 
+        
         char output_header[30];
         strcpy(output_header, hostname);
         if(strlen(output_header)==0)
@@ -185,7 +188,7 @@ int main(int argc, char *argv[]){
             strcpy(output_header, "*");
 
 
-        printf("%d %-30s %-8s  %-8s  %-8s\n", h, output_header, timecost[0], timecost[1], timecost[2]);
+        printf("%2d %-30s %-8s  %-8s  %-8s\n", h, output_header, timecost[0], timecost[1], timecost[2]);
         
 
         if(finish)
