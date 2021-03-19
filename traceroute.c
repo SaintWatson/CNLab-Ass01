@@ -43,29 +43,10 @@ char *DNSLookup(char *host){
 }
 US checksum(US buffer[BUF_SIZE], int len){
     unsigned int sum = 0;
-    // printf("[Buffer]: %d %d %d %d\n", buffer[0], buffer[1], buffer[2], buffer[3]);
-    for (int i=0 ; i<len ; i++){
-        // if(i==0)
-        //     sum += (buffer[i] << 8);
-        // else
-            sum +=  (unsigned int) buffer[i];
-    }
+    for (int i=0 ; i<len ; i++)
+        sum +=  (unsigned int) buffer[i];
     sum = sum/(1<<16) + sum%(1<<16);
-
     return ~sum;
-}
-
-char *dump(char *buf, int len){
-    if(len == -1)
-        return "failed";
-    char *ret = (char*) malloc(sizeof(char) * len * 5);
-
-    for(int i=0; i<len; i++){
-        char temp[5] = {'\0'};
-        sprintf(temp, "%d, ",buf[i]);
-        strcat(ret, temp);
-    }
-    return ret;
 }
 
 int main(int argc, char *argv[]){
@@ -95,18 +76,18 @@ int main(int argc, char *argv[]){
     
 
     // [TODO]: Set timeout
-    timeval timeout = {2,0}; // custumize 3 sec.
+    timeval timeout = {3,0}; // custumize 3 sec.
     setsockopt(icmpfd, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
 
     int finish = 0; // if the packet reaches the destination
     int maxHop = 64; // maximum hops
     icmp sendICMP; 
-    struct ip *ip_hdr;
     timeval begin, end; // used to record RTT
     int seq = 0; // increasing sequence number for icmp packet
     int count = 3; // sending count for each ttl
     int ret; // return value of some system call
-
+    char hostname[128];
+    char srcIP[32];
     printf("traceroute to %s (%s), %d hops max\n", argv[1], ip, maxHop);
 
     for(int h = 1; h < maxHop; h++){
@@ -146,10 +127,7 @@ int main(int argc, char *argv[]){
             SAin recvAddr;  
             u_int8_t icmpType;
             unsigned int recvLength = sizeof(recvAddr);
-            
             char recvBuf[1500];
-            char hostname[4][128];
-            char srcIP[4][32];
             int isTimeout = 0;
             
             ZERO(recvBuf);
@@ -182,40 +160,37 @@ int main(int argc, char *argv[]){
                 interval[c] += (float) (end.tv_sec - begin.tv_sec) * 1000;
             }
 
-            // Debug Message 
-            char *t = (char*) malloc(INET_ADDRSTRLEN);
-            // printf("(1) ret = %d\n", ret);
-            // printf("(2) recvBuf = %s \n", dump(recvBuf, ret));
-            // printf("(3) recvLength = %d \n",recvLength);
-            // printf("(4) recvAddr = %s \n\n",inet_ntop(AF_INET,&recvAddr.sin_addr.s_addr, t, INET_ADDRSTRLEN));
-            // printf("begin:%ld %ld\n", begin.tv_sec, begin.tv_usec);            
-            // printf("end:%ld %ld\n\n", end.tv_sec, end.tv_usec);            
-
 
             // Get source hostname and ip address 
             ZERO(hostname[c]);
-            getnameinfo((struct sockaddr *)&recvAddr, sizeof(recvAddr), hostname[c], sizeof(hostname[c]), NULL, 0, 0); 
-            // printf("hostname: %s\n", hostname[c]);
-            if(icmpType == 0){
+            getnameinfo((struct sockaddr *)&recvAddr, sizeof(recvAddr), hostname, sizeof(hostname), NULL, 0, 0); 
+            if(icmpType == 0)
                 finish = 1;
-            }
-
-            // [TODO] : Print the result
-            if(c == count-1){
-                char timecost[3][10];
-                for(int i=0;i<3;i++){
-                    if(interval[i] == -1)
-                        sprintf(timecost[i], "Timeout.");
-                    else
-                        sprintf(timecost[i], "%.3fms", interval[i]);
-                }
-                printf("%d\t%s\t\t%s\t\t%s\t\t%s\n", h, hostname[0],timecost[0], timecost[1], timecost[2]);
-
-            }
-        }    
-        if(finish){
-            break;
+            
         }
+        // [TODO] : Print the result
+        char timecost[3][10];
+        for(int i=0;i<3;i++){
+            if(interval[i] == -1)
+                sprintf(timecost[i], "Timeout.");
+            else
+                sprintf(timecost[i], "%.3fms", interval[i]);
+        }
+
+        char output_header[30];
+        strcpy(output_header, hostname);
+        if(strlen(output_header)==0)
+            strcpy(output_header, srcIP);
+        if(strlen(output_header)==0)
+            strcpy(output_header, "*");
+
+
+        printf("%d %-30s %-8s  %-8s  %-8s\n", h, output_header, timecost[0], timecost[1], timecost[2]);
+        
+
+        if(finish)
+            break;
+        
     }
     close(icmpfd);
     return 0;
