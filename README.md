@@ -19,8 +19,8 @@ Group 15
 ## Scoreboard
 - Environment:
     - [x] Localhost (10%)
-    - [ ] Nearest router (10%)
-    - [ ] No response (10%)
+    - [X] Nearest router (10%)
+    - [X] No response (10%)
     - [x] Handle DNS lookup (10%)
     - [ ] Use TCP and UDP to implement traceroute (10%)
 - Report:
